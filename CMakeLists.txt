@@ -15,7 +15,7 @@ endif()
 
 # Добавьте источник в исполняемый файл этого проекта.
 
-add_library(async SHARED "command.cpp" "thread.cpp" "async.cpp" "writer.cpp")
+add_library(async SHARED "commands_processor.cpp" "async.cpp" "writer.cpp" "command_handler.cpp")
 add_executable (bulk "main.cpp" )
 
 if (UNIX)

@@ -1,78 +1,58 @@
-﻿#include "command.h"
-#include "thread.h"
+﻿#include "commands_processor.h"
+#include "writer.h"
 
 #include <chrono>
 
 using namespace std;
 
-/**
-*	Process command int the static mode
-*/
-ICommandHandlerPtr StaticCommandHandler::ProcessCommand(Command* cmd, const std::string& s, bool& exit)
+namespace{
+
+void CoutWriterThr(queue<string>& stringQueue, mutex& threadMutex, bool& bStopFlag)
 {
-	exit = true;
+	CoutWriter writer;
 
-	if (s != EndOfFileString)
+	while (true)
 	{
-		exit = false;
+		lock_guard<std::mutex> guard(threadMutex);
 
-		if (s == "{")
+		if (!stringQueue.empty())
 		{
-			cmd->PrintPool();
-			return ICommandHandlerPtr{ new DynamicCommandHandler(count_) };
+			writer.Print(move(stringQueue.front()));
+			stringQueue.pop();
+		}
+		else
+		{
+			if (!bStopFlag) break;
 		}
 
-		cmd->PushPool(s);
-
-		if (cmd->GetPoolSize() == count_)
-		{
-			cmd->PrintPool();
-		}
-	}
-	else
-	{
-		cmd->PrintPool();
-	}
-
-	return nullptr;
+	} // while (bStopFlag)
 }
 
-/**
-*	Process command int the dynamic mode
-*/
-ICommandHandlerPtr DynamicCommandHandler::ProcessCommand(Command* cmd, const std::string& s, bool& exit)
+void FileWriterThr(std::queue<std::pair<std::string, long long>>& stringQueue, std::mutex& threadMutex, bool& bStopFlag, int postfix)
 {
-	exit = true;
+	FileWriter writer;
 
-	if(s == EndOfFileString)
-		return nullptr;
-
-	exit = false;
-
-	if (s == "{")
+	while (true)
 	{
-		++openBraceCount_;
-	}
-	else
-	if (s == "}")
-	{
-		if (openBraceCount_ == 0)
+		lock_guard<std::mutex> guard(threadMutex);
+
+		if (!stringQueue.empty())
 		{
-			cmd->PrintPool();
-			return ICommandHandlerPtr{ new StaticCommandHandler(count_) };
+			auto p = move(stringQueue.front());
+			writer.Print(p.second, postfix, p.first);
+			stringQueue.pop();
+		}
+		else
+		{
+			if (!bStopFlag) break;
 		}
 
-		--openBraceCount_;
-	}
-	else
-	{
-		cmd->PushPool(s);
-	}
-
-	return nullptr;
+	} // while (bStopFlag)
 }
 
-Command::Command(size_t count) : count_{ count }
+} // namespace
+
+CommandsProcessor::CommandsProcessor(size_t count) : count_{ count }
 {
 	handler_ = ICommandHandlerPtr{ new StaticCommandHandler(count_) };
 
@@ -81,7 +61,7 @@ Command::Command(size_t count) : count_{ count }
 	file_thr2 = thread(FileWriterThr, ref(stringsQueueFile), ref(ThreadFileMutex), ref(stop_flag_), 2);
 }
 
-Command::~Command()
+CommandsProcessor::~CommandsProcessor()
 {
 	stop_flag_ = false;
 	cout_thr.join();
@@ -92,7 +72,7 @@ Command::~Command()
 /**
 *	Add command int the block
 */
-void Command::PushPool(const std::string& s)
+void CommandsProcessor::PushPool(const std::string& s)
 {
 	if (pool_.size() == 0)
 	{
@@ -105,7 +85,7 @@ void Command::PushPool(const std::string& s)
 /**
 *	Output string
 */
-void Command::PrintString(const std::string& s)
+void CommandsProcessor::PrintString(const std::string& s)
 {
 	{
 		lock_guard<std::mutex> guard(ThreadCoutMutex);
@@ -120,7 +100,7 @@ void Command::PrintString(const std::string& s)
 /**
 *	Output block of commands
 */
-void Command::PrintPool()
+void CommandsProcessor::PrintPool()
 {
 	if (pool_.size())
 	{
@@ -139,4 +119,18 @@ void Command::PrintPool()
 		PrintString(s);
 		pool_.clear();
 	}
+}
+
+bool CommandsProcessor::ProcessCommand(const std::string& cmd) 
+{
+	bool res;
+
+	ICommandHandlerPtr ptr = handler_->ProcessCommand(this, cmd, res);
+
+	if (ptr)
+	{
+		handler_ = std::move(ptr);
+	}
+
+	return !res;
 }

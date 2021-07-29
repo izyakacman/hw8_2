@@ -1,5 +1,5 @@
 #include "async.h"
-#include "command.h"
+#include "commands_processor.h"
 
 #include <sstream>
 #include <thread>
@@ -9,12 +9,12 @@ namespace async {
 
 handle_t connect(std::size_t bulk) 
 {
-    return new Command( bulk );
+    return new CommandsProcessor( bulk );
 }
 
 void receive(handle_t handle, const char *data, std::size_t size) 
 {
-    Command* ptr = reinterpret_cast<Command*>(handle);
+    CommandsProcessor* ptr = reinterpret_cast<CommandsProcessor*>(handle);
     std::string s { data, size };
     std::istringstream stream{s};
 
@@ -26,11 +26,11 @@ void receive(handle_t handle, const char *data, std::size_t size)
 
 void disconnect(handle_t handle) 
 {
-    Command* ptr = reinterpret_cast<Command*>(handle);
+    CommandsProcessor* ptr = reinterpret_cast<CommandsProcessor*>(handle);
 
     ptr->ProcessCommand(EndOfFileString);
 
-    delete reinterpret_cast<Command*>(handle);
+    delete reinterpret_cast<CommandsProcessor*>(handle);
 }
 
 }

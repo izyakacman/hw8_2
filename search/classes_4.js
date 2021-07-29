@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['staticcommandhandler_72',['StaticCommandHandler',['../class_static_command_handler.html',1,'']]]
+  ['staticcommandhandler_71',['StaticCommandHandler',['../class_static_command_handler.html',1,'']]]
 ];
